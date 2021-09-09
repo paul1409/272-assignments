@@ -1,0 +1,60 @@
+---
+- hosts: nodes
+  become: yes
+  vars:
+    server_name: "{{ ansible_default_ipv4.address }}"
+    document_root: /var/www
+    app_root: html_example
+  tasks:
+    - name: Update + install NGINX
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+
+    - name: Update + install UFW
+      apt:
+        name: ufw
+        state: latest
+        update_cache: yes
+
+    - name: Copy HTML file
+      copy:
+        src: "{{ app_root }}"
+        dest: "{{ document_root }}"
+        mode: preserve
+
+    - name: Apply NGINX config
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify: Restart Nginx
+
+    - name: Deploy NGINX webserver
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+      notify: Restart Nginx
+
+    - name: Allow access on port 80
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Keep server alive for 60 seconds
+      wait_for:
+        timeout: 60
+        
+    - name: Undeploy NGINX webserver
+      service: 
+        name: nginx 
+        state: stopped 
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+        
